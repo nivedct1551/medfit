@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  passwordHash  String
+  moodEntries   MoodEntry[]
+  groupMembers  GroupMember[]
+  posts         Post[]
+  reminders     Reminder[]
+}
+
+model Group {
+  id          String    @id @default(uuid())
+  name        String
+  inviteCode  String    @unique
+  members     GroupMember[]
+  posts       Post[]
+}
+
+model GroupMember {
+  id        String   @id @default(uuid())
+  userId    String
+  groupId   String
+  joinedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  group     Group    @relation(fields: [groupId], references: [id])
+
+  @@unique([userId, groupId])
+}
+
+model MoodEntry {
+  id         String   @id @default(uuid())
+  userId     String
+  date       String   // Format: YYYY-MM-DD
+  moodLevel  Int      // 1 (Very Sad) to 5 (Very Happy)
+  note       String?  // Optional private diary note
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date]) // One entry per day
+}
+
+model Post {
+  id        String   @id @default(uuid())
+  userId    String
+  groupId   String
+  content   String
+  type      String   // 'text' or 'fitness'
+  likes     Int      @default(0)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  group     Group    @relation(fields: [groupId], references: [id])
+}
+
+model Reminder {
+  id             String   @id @default(uuid())
+  userId         String
+  title          String
+  category       String   // 'medicine', 'sleep', 'water', 'exercise'
+  time           String   // Format: 'HH:MM'
+  repeatDaily    Boolean  @default(false)
+  completedCount Int      @default(0)
+  missedCount    Int      @default(0)
+  user           User     @relation(fields: [userId], references: [id])
+}
