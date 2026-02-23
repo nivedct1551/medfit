@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
+const { initializeScheduler } = require('./utils/reminderScheduler');
 require('dotenv').config();
 
 const app = express();
@@ -28,6 +29,17 @@ app.use('/api/reminders', require('./routes/reminders'));
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    // Initialize reminder scheduler
+    initializeScheduler();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+        console.log('Server closed');
+        process.exit(0);
+    });
 });

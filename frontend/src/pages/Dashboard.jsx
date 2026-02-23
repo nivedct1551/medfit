@@ -1,16 +1,33 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, getAuthHeaders } from '../services/api';
-import Calendar from '../components/Calendar';
-import MoodModal from '../components/MoodModal';
+import Calendar from '../components/Journal/Calendar';
+import EmojiSelector from '../components/Journal/EmojiSelector';
+import MonthlyGraph from '../components/Journal/MonthlyGraph';
+import '../components/Journal/Journal.css';
 import { Sparkles } from 'lucide-react';
+
+const EMOJI_STATES = [
+    { id: 1, emoji: '😭', label: 'Very Sad', color: '#ef4444' },
+    { id: 2, emoji: '😞', label: 'Sad', color: '#f97316' },
+    { id: 3, emoji: '😐', label: 'Neutral', color: '#eab308' },
+    { id: 4, emoji: '🙂', label: 'Happy', color: '#84cc16' },
+    { id: 5, emoji: '🤩', label: 'Very Happy', color: '#22c55e' }
+];
 
 export default function Dashboard() {
     const { user } = useAuth();
-    const [entries, setEntries] = useState([]);
+    const [entries, setEntries] = useState({});
     const [insight, setInsight] = useState('');
     const [selectedDate, setSelectedDate] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedMoodId, setSelectedMoodId] = useState(null);
+    const [journalNote, setJournalNote] = useState('');
+
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
     useEffect(() => {
         fetchData();
@@ -21,7 +38,16 @@ export default function Dashboard() {
             const entriesRes = await fetch(`${API_URL}/mood`, { headers: getAuthHeaders() });
             if (entriesRes.ok) {
                 const data = await entriesRes.json();
-                setEntries(data);
+                const entriesMap = {};
+                data.forEach(entry => {
+                    const emojiObj = EMOJI_STATES.find(e => e.id === entry.moodLevel);
+                    entriesMap[entry.date] = {
+                        emoji: emojiObj?.emoji || '😐',
+                        moodLevel: entry.moodLevel,
+                        journalNote: entry.note || ''
+                    };
+                });
+                setEntries(entriesMap);
             }
 
             const insightRes = await fetch(`${API_URL}/mood/weekly-summary`, { headers: getAuthHeaders() });
@@ -32,57 +58,131 @@ export default function Dashboard() {
         } catch (e) { console.error(e); }
     };
 
-    const handleDateClick = (date) => {
-        setSelectedDate(date);
+    const handleDateSelected = (dateStr, dayNum) => {
+        setSelectedDate(dateStr);
+        const existing = entries[dateStr];
+        if (existing) {
+            const moodState = EMOJI_STATES.find(e => e.emoji === existing.emoji);
+            setSelectedMoodId(moodState?.id || null);
+            setJournalNote(existing.journalNote || '');
+        } else {
+            setSelectedMoodId(null);
+            setJournalNote('');
+        }
         setIsModalOpen(true);
     };
 
-    const handleSaveEntry = async (moodData) => {
+    const handleSaveEntry = async () => {
+        if (!selectedMoodId) {
+            alert("Please select a mood to save your entry.");
+            return;
+        }
+
         try {
             await fetch(`${API_URL}/mood`, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     date: selectedDate,
-                    ...moodData
+                    moodLevel: selectedMoodId,
+                    note: journalNote
                 })
             });
+
+            const emojiObj = EMOJI_STATES.find(e => e.id === selectedMoodId);
+            setEntries(prev => ({
+                ...prev,
+                [selectedDate]: {
+                    emoji: emojiObj.emoji,
+                    moodLevel: selectedMoodId,
+                    journalNote: journalNote
+                }
+            }));
+
             setIsModalOpen(false);
-            fetchData(); // Refresh UI
-        } catch (e) { console.error('Failed to save mood', e); }
+            fetchData();
+        } catch (e) {
+            console.error('Failed to save mood', e);
+            alert('Failed to save entry');
+        }
     };
 
     return (
-        <div className="py-6 max-w-4xl mx-auto space-y-8 animate-fade-in">
-            <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Welcome back, {user?.name} 👋</h1>
-                    <p className="text-slate-500 mt-1 font-medium">Here's your mood journal and insights.</p>
-                </div>
-
-                {insight && (
-                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex items-start gap-3 w-full md:max-w-md shadow-sm">
-                        <Sparkles className="text-indigo-500 w-5 h-5 flex-shrink-0 mt-0.5" />
-                        <div>
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-800 mb-1">Weekly Insight</h3>
-                            <p className="text-indigo-900 text-sm font-medium">{insight}</p>
-                        </div>
-                    </div>
-                )}
+        <div className="journal-container" style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+            <header style={{ marginBottom: '2rem' }}>
+                <h1 style={{ fontSize: '2rem', fontWeight: 'bold', color: 'rgb(30, 41, 59)', marginBottom: '0.5rem' }}>
+                    Welcome back, {user?.username || 'Friend'} 👋
+                </h1>
+                <p style={{ color: 'rgb(100, 116, 139)', fontWeight: '500' }}>
+                    Here's your mental health journal and insights.
+                </p>
             </header>
 
-            <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h2 className="text-xl font-bold text-slate-800 mb-6">Your Month</h2>
-                <Calendar entries={entries} onDateClick={handleDateClick} />
-            </section>
+            {(Object.values(entries).filter(e => e.moodLevel <= 2).length > 0) && (
+                <div style={{
+                    background: 'linear-gradient(145deg, rgb(248, 250, 252), white)',
+                    padding: '1.5rem',
+                    borderRadius: '1rem',
+                    border: '1px solid rgb(226, 232, 240)',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '1rem',
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                    marginBottom: '2rem'
+                }}>
+                    <div style={{
+                        fontSize: '2rem',
+                        background: 'rgb(59, 130, 246, 0.1)',
+                        padding: '1rem',
+                        borderRadius: '50%',
+                        color: 'rgb(59, 130, 246)',
+                        flexShrink: 0
+                    }}>💡</div>
+                    <div>
+                        <h4 style={{ fontSize: '1rem', color: 'rgb(30, 41, 59)', marginBottom: '0.25rem', fontWeight: '600' }}>
+                            Check in on yourself
+                        </h4>
+                        <p style={{ color: 'rgb(100, 116, 139)', fontSize: '0.95rem', margin: 0 }}>
+                            You felt low on {Object.values(entries).filter(e => e.moodLevel <= 2).length} day(s) recently. Remember it's okay to ask for help.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            <Calendar entries={entries} onDateSelected={handleDateSelected} />
+
+            <MonthlyGraph entries={entries} daysInMonth={daysInMonth} currentYear={currentYear} currentMonth={currentMonth} />
 
             {isModalOpen && (
-                <MoodModal
-                    date={selectedDate}
-                    existingEntry={entries.find(e => e.date === selectedDate)}
-                    onClose={() => setIsModalOpen(false)}
-                    onSave={handleSaveEntry}
-                />
+                <div className="modal-overlay" onClick={(e) => {
+                    if (e.target.className === 'modal-overlay') setIsModalOpen(false);
+                }}>
+                    <div className="modal-content">
+                        <div className="modal-header">
+                            <h2>Journal - {selectedDate}</h2>
+                            <button className="close-btn" onClick={() => setIsModalOpen(false)}>&times;</button>
+                        </div>
+
+                        <div className="modal-body">
+                            <h4>How was your day?</h4>
+                            <EmojiSelector
+                                selectedId={selectedMoodId}
+                                onSelect={(id) => setSelectedMoodId(id)}
+                            />
+
+                            <h4 style={{ marginTop: '1.5rem' }}>Write your thoughts...</h4>
+                            <textarea
+                                value={journalNote}
+                                onChange={(e) => setJournalNote(e.target.value)}
+                                placeholder="Today was..."
+                            />
+
+                            <button className="save-btn" onClick={handleSaveEntry}>
+                                Save Entry
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

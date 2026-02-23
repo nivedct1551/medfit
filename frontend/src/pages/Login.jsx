@@ -4,25 +4,27 @@ import { API_URL } from '../services/api';
 import { Activity } from 'lucide-react';
 
 export default function Login() {
-    const [isLogin, setIsLogin] = useState(true);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [name, setName] = useState('');
+    const [username, setUsername] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
-        const url = isLogin ? `${API_URL}/auth/login` : `${API_URL}/auth/register`;
-        const payload = isLogin ? { email, password } : { email, password, name };
+        if (!username.trim()) {
+            setError('Username is required');
+            return;
+        }
+
+        setLoading(true);
 
         try {
-            const res = await fetch(url, {
+            const res = await fetch(`${API_URL}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ username: username.trim() })
             });
 
             const data = await res.json();
@@ -32,6 +34,8 @@ export default function Login() {
             login(data.user, data.token);
         } catch (err) {
             setError(err.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -49,54 +53,31 @@ export default function Login() {
                 {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-6 text-sm font-medium text-center">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    {!isLogin && (
-                        <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1">Name</label>
-                            <input
-                                type="text" required
-                                value={name} onChange={e => setName(e.target.value)}
-                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                                placeholder="How should we call you?"
-                            />
-                        </div>
-                    )}
-
                     <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Email</label>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">Username</label>
                         <input
-                            type="email" required
-                            value={email} onChange={e => setEmail(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                            placeholder="you@example.com"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1">Password</label>
-                        <input
-                            type="password" required
-                            value={password} onChange={e => setPassword(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-                            placeholder="••••••••"
+                            type="text"
+                            required
+                            value={username}
+                            onChange={e => setUsername(e.target.value)}
+                            disabled={loading}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all disabled:bg-slate-50"
+                            placeholder="Choose a username"
+                            autoComplete="off"
                         />
                     </div>
 
                     <button
                         type="submit"
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-md shadow-indigo-200"
+                        disabled={loading}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-bold py-3 px-4 rounded-xl transition-colors shadow-md shadow-indigo-200"
                     >
-                        {isLogin ? 'Sign In' : 'Create Account'}
+                        {loading ? 'Joining...' : 'Join Now'}
                     </button>
                 </form>
 
-                <p className="mt-8 text-center text-sm text-slate-500 font-medium">
-                    {isLogin ? "New to CircleCare? " : "Already have an account? "}
-                    <button
-                        onClick={() => { setIsLogin(!isLogin); setError(''); }}
-                        className="text-indigo-600 font-bold hover:underline"
-                    >
-                        {isLogin ? 'Sign up' : 'Sign in'}
-                    </button>
+                <p className="mt-6 text-center text-xs text-slate-400 font-medium">
+                    No password needed. Just pick a username to get started.
                 </p>
             </div>
         </div>

@@ -2,12 +2,17 @@ const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const authMiddleware = require('../middleware/authMiddleware');
 const crypto = require('crypto');
+const {
+    validateGroupCreation,
+    validateGroupJoin,
+    validatePostCreation
+} = require('../utils/validation');
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Create a new group
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, validateGroupCreation, async (req, res) => {
     try {
         const { name } = req.body;
 
@@ -151,6 +156,15 @@ router.get('/:groupId', authMiddleware, async (req, res) => {
 router.get('/:groupId/feed', authMiddleware, async (req, res) => {
     try {
         const { groupId } = req.params;
+
+        // Verify user is group member
+        const membership = await prisma.groupMember.findUnique({
+            where: {
+                userId_groupId: { userId: req.user.userId, groupId }
+            }
+        });
+        if (!membership) return res.status(403).json({ error: 'Not authorized to view this group feed' });
+
         const posts = await prisma.post.findMany({
             where: { groupId },
             orderBy: { createdAt: 'desc' },
@@ -169,6 +183,14 @@ router.post('/:groupId/posts', authMiddleware, async (req, res) => {
     try {
         const { content, type } = req.body;
         const { groupId } = req.params;
+
+        // Verify user is group member
+        const membership = await prisma.groupMember.findUnique({
+            where: {
+                userId_groupId: { userId: req.user.userId, groupId }
+            }
+        });
+        if (!membership) return res.status(403).json({ error: 'Not authorized to post in this group' });
 
         const post = await prisma.post.create({
             data: {
@@ -189,7 +211,16 @@ router.post('/:groupId/posts', authMiddleware, async (req, res) => {
 // Like a post
 router.post('/:groupId/posts/:postId/like', authMiddleware, async (req, res) => {
     try {
-        const { postId } = req.params;
+        const { groupId, postId } = req.params;
+
+        // Verify user is group member
+        const membership = await prisma.groupMember.findUnique({
+            where: {
+                userId_groupId: { userId: req.user.userId, groupId }
+            }
+        });
+        if (!membership) return res.status(403).json({ error: 'Not authorized to like posts in this group' });
+
         const post = await prisma.post.update({
             where: { id: postId },
             data: { likes: { increment: 1 } },

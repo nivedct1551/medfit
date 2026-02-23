@@ -12,7 +12,12 @@ export const AuthProvider = ({ children }) => {
 
         if (token && storedUser) {
             try {
-                setUser(JSON.parse(storedUser));
+                const userData = JSON.parse(storedUser);
+                // Normalize user data to always have userId
+                if (userData && !userData.userId && userData.id) {
+                    userData.userId = userData.id;
+                }
+                setUser(userData);
             } catch (e) {
                 console.error("Failed to parse user", e);
             }
@@ -21,9 +26,14 @@ export const AuthProvider = ({ children }) => {
     }, []);
 
     const login = (userData, token) => {
+        // Normalize user data to always have userId
+        const normalizedUser = {
+            ...userData,
+            userId: userData.userId || userData.id,
+        };
         localStorage.setItem('token', token);
-        localStorage.setItem('user', JSON.stringify(userData));
-        setUser(userData);
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        setUser(normalizedUser);
     };
 
     const logout = () => {
